@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clipboard History</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app-header">
+        <h1>Clipboard</h1>
+        <button id="clearAllBtn" class="btn btn-secondary" type="button">Clear All</button>
+      </header>
+
+      <label class="search-wrap" for="searchInput">
+        <input
+          id="searchInput"
+          class="search-input"
+          type="search"
+          placeholder="Search clipboard"
+          autocomplete="off"
+        />
+      </label>
+
+      <p id="feedback" class="feedback hidden" aria-live="polite"></p>
+
+      <section id="list" class="list" aria-live="polite"></section>
+      <p id="emptyState" class="empty hidden">No items</p>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
