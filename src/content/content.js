@@ -7,8 +7,6 @@
   const HISTORY_KEY = "clipboard_history";
   const INTERACTION_READ_DELAY_MS = 180;
   const INJECTED_MESSAGE_SOURCE = "__clipcard_injected";
-  const MAX_IMAGE_BYTES = 1 * 1024 * 1024; // 1 MB
-
   let lastStoredText = "";
   let lastStoredTextKey = "";
   let lastStoredImageHash = "";

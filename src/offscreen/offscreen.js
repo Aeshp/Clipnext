@@ -1,4 +1,3 @@
-const MAX_IMAGE_BYTES = 1 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2500;
 
 let lastTextHash = "";
@@ -32,7 +31,7 @@ async function readClipboard() {
       for (const type of types) {
         if (type === "image/png" || type === "image/jpeg") {
           const blob = await item.getType(type);
-          if (blob && blob.size > 0 && blob.size <= MAX_IMAGE_BYTES) {
+          if (blob && blob.size > 0) {
             const dataUrl = await blobToBase64(blob);
             return { image: dataUrl, mime: type };
           }
@@ -70,7 +69,7 @@ function readViaExecCommand() {
         for (const item of items) {
           if (item.type === "image/png" || item.type === "image/jpeg") {
             const file = item.getAsFile();
-            if (file && file.size > 0 && file.size <= MAX_IMAGE_BYTES) {
+            if (file && file.size > 0) {
               blobToBase64(file)
                 .then((dataUrl) => resolve({ image: dataUrl, mime: item.type }))
                 .catch(() => resolve(null));
