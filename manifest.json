@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Clipboard History Capture",
-  "version": "1.0.0",
-  "description": "Captures copied text and stores it in chrome.storage.local.",
+  "name": "Clipnext – Smart Clipboard Manager",
+  "version": "1.1.0",
+  "description": "Smart clipboard manager for text, images, and screenshots. Capture everything you copy, access your history instantly, auto-delete after 7 days, and keep all data stored locally for privacy. Fully open source and transparent",
   "permissions": [
     "storage",
     "clipboardRead",
     "clipboardWrite",
     "alarms",
     "tabs",
-    "scripting"
+    "scripting",
+    "offscreen"
   ],
   "host_permissions": ["<all_urls>"],
   "icons": {
@@ -37,6 +38,12 @@
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/injected/injected.js"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

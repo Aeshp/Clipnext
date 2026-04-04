@@ -133,6 +133,29 @@ body {
   white-space: pre-wrap;
 }
 
+.item-image {
+  max-width: 100%;
+  max-height: 120px;
+  border-radius: 6px;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.item-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--primary);
+  margin-top: 2px;
+}
+
 .item-time {
   margin-top: 6px;
   font-size: 11px;
