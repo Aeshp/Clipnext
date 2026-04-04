@@ -6,9 +6,13 @@
 
   const HISTORY_KEY = "clipboard_history";
   const INTERACTION_READ_DELAY_MS = 180;
+  const INJECTED_MESSAGE_SOURCE = "__clipcard_injected";
+  const MAX_IMAGE_BYTES = 1 * 1024 * 1024; // 1 MB
 
   let lastStoredText = "";
-  let hasLoadedLastStoredText = false;
+  let lastStoredTextKey = "";
+  let lastStoredImageHash = "";
+  let hasLoadedLastStored = false;
   let interactionReadTimer = 0;
   let readInProgress = false;
 
@@ -20,31 +24,76 @@
     return value.trim();
   }
 
-  function syncLastStoredTextFromHistoryValue(historyValue) {
+  function toComparisonKey(text) {
+    if (typeof text !== "string") {
+      return "";
+    }
+    return text.replace(/\s+/g, " ").trim();
+  }
+
+  function imageQuickHash(dataUrl) {
+    if (typeof dataUrl !== "string") {
+      return "";
+    }
+    return dataUrl.slice(0, 200);
+  }
+
+  function syncLastStoredFromHistoryValue(historyValue) {
     const history = Array.isArray(historyValue) ? historyValue : [];
     const lastItem = history[history.length - 1];
 
-    if (lastItem && typeof lastItem.text === "string") {
-      lastStoredText = normalizeClipboardText(lastItem.text);
+    if (!lastItem) {
+      lastStoredText = "";
+      lastStoredTextKey = "";
+      lastStoredImageHash = "";
       return;
     }
 
-    lastStoredText = "";
+    const itemType = lastItem.type || "text";
+    if (itemType === "text" && typeof lastItem.text === "string") {
+      lastStoredText = normalizeClipboardText(lastItem.text);
+      lastStoredTextKey = toComparisonKey(lastItem.text);
+      lastStoredImageHash = "";
+    } else if (itemType === "image" && typeof lastItem.image === "string") {
+      lastStoredImageHash = imageQuickHash(lastItem.image);
+      lastStoredText = "";
+      lastStoredTextKey = "";
+    } else {
+      lastStoredText = "";
+      lastStoredTextKey = "";
+      lastStoredImageHash = "";
+    }
   }
 
-  async function loadLastStoredText() {
-    if (hasLoadedLastStoredText) {
+  async function loadLastStored() {
+    if (hasLoadedLastStored) {
       return;
     }
 
-    hasLoadedLastStoredText = true;
+    hasLoadedLastStored = true;
 
     try {
       const result = await chrome.storage.local.get(HISTORY_KEY);
-      syncLastStoredTextFromHistoryValue(result[HISTORY_KEY]);
+      syncLastStoredFromHistoryValue(result[HISTORY_KEY]);
     } catch (_error) {
       // Safe fallback: background script still does duplicate checks.
     }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        if (typeof dataUrl === "string") {
+          resolve(dataUrl);
+        } else {
+          reject(new Error("FileReader did not produce a string"));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
   }
 
   async function sendClipboardTextIfNew(rawText, source) {
@@ -53,9 +102,10 @@
       return false;
     }
 
-    await loadLastStoredText();
+    await loadLastStored();
 
-    if (text === lastStoredText) {
+    const key = toComparisonKey(text);
+    if (key === lastStoredTextKey) {
       return false;
     }
 
@@ -68,6 +118,37 @@
 
       if (response && response.ok) {
         lastStoredText = text;
+        lastStoredTextKey = key;
+      }
+
+      return Boolean(response && response.ok);
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  async function sendClipboardImageIfNew(imageDataUrl, mime, source) {
+    if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:")) {
+      return false;
+    }
+
+    await loadLastStored();
+
+    const hash = imageQuickHash(imageDataUrl);
+    if (hash === lastStoredImageHash) {
+      return false;
+    }
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "COPIED_IMAGE",
+        image: imageDataUrl,
+        mime: mime || "image/png",
+        source,
+      });
+
+      if (response && response.ok) {
+        lastStoredImageHash = hash;
       }
 
       return Boolean(response && response.ok);
@@ -81,20 +162,29 @@
       return;
     }
 
-    if (!navigator.clipboard || typeof navigator.clipboard.readText !== "function") {
-      return;
-    }
-
     readInProgress = true;
 
     try {
-      // Clipboard reads are only attempted shortly after trusted user interactions.
-      const clipboardText = await navigator.clipboard.readText();
-      await sendClipboardTextIfNew(clipboardText, "interaction-read");
+      if (navigator.clipboard && typeof navigator.clipboard.readText === "function") {
+        const clipboardText = await navigator.clipboard.readText();
+        if (clipboardText && clipboardText.trim()) {
+          await sendClipboardTextIfNew(clipboardText, "interaction-read");
+          return;
+        }
+      }
+
+      requestImageReadFromBackground();
     } catch (_error) {
-      // Ignore permission/security errors and keep the extension stable.
+      requestImageReadFromBackground();
     } finally {
       readInProgress = false;
+    }
+  }
+
+  function requestImageReadFromBackground() {
+    try {
+      chrome.runtime.sendMessage({ type: "CHECK_CLIPBOARD_IMAGE" }).catch(() => {});
+    } catch (_error) {
     }
   }
 
@@ -102,7 +192,6 @@
     window.clearTimeout(interactionReadTimer);
     interactionReadTimer = window.setTimeout(() => {
       readClipboardAfterInteraction().catch(() => {
-        // Errors are handled in readClipboardAfterInteraction.
       });
     }, INTERACTION_READ_DELAY_MS);
   }
@@ -210,15 +299,74 @@
     "copy",
     (event) => {
       const text = getCopiedText(event);
-      sendClipboardTextIfNew(text, "copy-event").catch(() => {
-        // Ignore runtime message failures for stability.
-      });
+
+      if (text) {
+        window.clearTimeout(interactionReadTimer);
+        sendClipboardTextIfNew(text, "copy-event").catch(() => {
+          // Again Ignore runtime message failures for stability.
+        });
+      } else {
+        window.clearTimeout(interactionReadTimer);
+        setTimeout(() => {
+          requestImageReadFromBackground();
+        }, 250);
+      }
     },
     true
   );
 
   document.addEventListener("click", onClickInteraction, true);
   document.addEventListener("keydown", onKeydownInteraction, true);
+
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      if (!event.isTrusted) {
+        return;
+      }
+
+      setTimeout(() => requestImageReadFromBackground(), 800);
+      setTimeout(() => requestImageReadFromBackground(), 2500);
+    },
+    true
+  );
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window) {
+      return;
+    }
+
+    const data = event.data;
+    if (!data || data.source !== INJECTED_MESSAGE_SOURCE) {
+      return;
+    }
+
+    const payload = data.payload;
+    if (!payload || !payload.type) {
+      return;
+    }
+
+    if (payload.type === "COPIED_TEXT" && typeof payload.text === "string") {
+      sendClipboardTextIfNew(payload.text, "injected-writeText").catch(() => {});
+    }
+
+    if (payload.type === "COPIED_IMAGE" && typeof payload.image === "string") {
+      sendClipboardImageIfNew(payload.image, payload.mime, "injected-write").catch(() => {});
+    }
+  });
+
+  function injectPageScript() {
+    try {
+      const scriptUrl = chrome.runtime.getURL("src/injected/injected.js");
+      const script = document.createElement("script");
+      script.src = scriptUrl;
+      script.onload = () => script.remove();
+      (document.head || document.documentElement).appendChild(script);
+    } catch (_error) {
+    }
+  }
+
+  injectPageScript();
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== "PASTE_TEXT" || typeof message.text !== "string") {
@@ -230,20 +378,7 @@
     return false;
   });
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local") {
-      return;
-    }
-
-    if (!Object.prototype.hasOwnProperty.call(changes, HISTORY_KEY)) {
-      return;
-    }
-
-    const nextValue = changes[HISTORY_KEY].newValue;
-    syncLastStoredTextFromHistoryValue(nextValue);
-  });
-
-  loadLastStoredText().catch(() => {
+  loadLastStored().catch(() => {
     // Ignore storage read issues.
   });
 })();

@@ -1,6 +1,7 @@
 export const HISTORY_KEY = "clipboard_history";
 export const MAX_ITEMS = 50;
 export const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+export const MAX_IMAGE_BASE64_LENGTH = 1.4 * 1024 * 1024;
 
 function generateId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -18,31 +19,75 @@ function toTrimmedText(rawText) {
   return rawText.trim();
 }
 
-export function createHistoryItem(text) {
+function toComparisonKey(text) {
+  if (typeof text !== "string") {
+    return "";
+  }
+
+  return text.replace(/\s+/g, " ").trim();
+}
+
+export function createTextItem(text) {
   const createdAt = Date.now();
 
   return {
     id: generateId(),
+    type: "text",
     text,
     createdAt,
     expiry: createdAt + SEVEN_DAYS_MS,
   };
 }
 
+export function createImageItem(image, mime) {
+  const createdAt = Date.now();
+
+  return {
+    id: generateId(),
+    type: "image",
+    image,
+    mime: mime || "image/png",
+    createdAt,
+    expiry: createdAt + SEVEN_DAYS_MS,
+  };
+}
+
+export function createHistoryItem(text) {
+  return createTextItem(text);
+}
+
 export function isActiveHistoryItem(item, now = Date.now()) {
-  return (
-    item &&
-    typeof item.id === "string" &&
-    typeof item.text === "string" &&
-    typeof item.createdAt === "number" &&
-    typeof item.expiry === "number" &&
-    item.expiry > now
-  );
+  if (!item || typeof item.id !== "string" || typeof item.createdAt !== "number" || typeof item.expiry !== "number") {
+    return false;
+  }
+
+  if (item.expiry <= now) {
+    return false;
+  }
+
+  const itemType = item.type || "text";
+  if (itemType === "text") {
+    return typeof item.text === "string";
+  }
+
+  if (itemType === "image") {
+    return typeof item.image === "string";
+  }
+
+  return false;
 }
 
 export function sortHistoryLatestFirst(history) {
   return history
-    .filter((item) => item && typeof item.id === "string" && typeof item.text === "string")
+    .filter((item) => {
+      if (!item || typeof item.id !== "string") {
+        return false;
+      }
+      const itemType = item.type || "text";
+      if (itemType === "text") return typeof item.text === "string";
+      if (itemType === "image") return typeof item.image === "string";
+      return false;
+    })
     .sort((a, b) => {
       const aTime = typeof a.createdAt === "number" ? a.createdAt : 0;
       const bTime = typeof b.createdAt === "number" ? b.createdAt : 0;
@@ -92,12 +137,41 @@ export async function appendClipboardText(rawText) {
 
   const history = await cleanupExpiredHistory();
 
-  const lastItem = history[history.length - 1];
-  if (lastItem && lastItem.text === text) {
+  const key = toComparisonKey(text);
+  const isDuplicate = history.some(
+    (item) => (item.type || "text") === "text" && toComparisonKey(item.text) === key
+  );
+  if (isDuplicate) {
     return { ok: false, reason: "duplicate" };
   }
 
-  history.push(createHistoryItem(text));
+  history.push(createTextItem(text));
+
+  const trimmedHistory = history.slice(-MAX_ITEMS);
+  await saveHistory(trimmedHistory);
+
+  return { ok: true };
+}
+
+export async function appendClipboardImage(imageDataUrl, mime) {
+  if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:")) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  if (imageDataUrl.length > MAX_IMAGE_BASE64_LENGTH) {
+    return { ok: false, reason: "too_large" };
+  }
+
+  const history = await cleanupExpiredHistory();
+
+  const isDuplicate = history.some(
+    (item) => item.type === "image" && item.image === imageDataUrl
+  );
+  if (isDuplicate) {
+    return { ok: false, reason: "duplicate" };
+  }
+
+  history.push(createImageItem(imageDataUrl, mime));
 
   const trimmedHistory = history.slice(-MAX_ITEMS);
   await saveHistory(trimmedHistory);

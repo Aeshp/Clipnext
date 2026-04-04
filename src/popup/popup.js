@@ -18,6 +18,7 @@ let allItems = [];
 let copiedItemId = "";
 let feedbackTimer = 0;
 let copiedTimer = 0;
+let ownWriteInProgress = false;
 
 function formatTime(value) {
   if (typeof value !== "number") {
@@ -27,13 +28,27 @@ function formatTime(value) {
   return new Date(value).toLocaleString();
 }
 
+function getItemType(item) {
+  return item.type || "text";
+}
+
 function getVisibleItems() {
   const query = searchInputEl.value.trim().toLowerCase();
   if (!query) {
     return allItems;
   }
 
-  return allItems.filter((item) => item.text.toLowerCase().includes(query));
+  return allItems.filter((item) => {
+    const itemType = getItemType(item);
+    if (itemType === "text") {
+      return item.text.toLowerCase().includes(query);
+    }
+
+    if (itemType === "image") {
+      return "image".includes(query) || (item.mime || "").toLowerCase().includes(query);
+    }
+    return false;
+  });
 }
 
 function setFeedback(message) {
@@ -84,6 +99,7 @@ function renderItems(items) {
   clearAllBtn.disabled = false;
 
   for (const item of items) {
+    const itemType = getItemType(item);
     const card = document.createElement("article");
     card.className = "item";
     if (item.id === copiedItemId) {
@@ -97,13 +113,29 @@ function renderItems(items) {
     copyBtn.type = "button";
     copyBtn.className = "item-copy";
     copyBtn.dataset.copyId = item.id;
-    copyBtn.title = item.text;
 
-    const textEl = document.createElement("p");
-    textEl.className = "item-text";
-    textEl.textContent = item.text;
+    if (itemType === "text") {
+      copyBtn.title = item.text;
 
-    copyBtn.append(textEl);
+      const textEl = document.createElement("p");
+      textEl.className = "item-text";
+      textEl.textContent = item.text;
+      copyBtn.append(textEl);
+    } else if (itemType === "image") {
+      copyBtn.title = "Click to copy image";
+
+      const imgEl = document.createElement("img");
+      imgEl.className = "item-image";
+      imgEl.src = item.image;
+      imgEl.alt = "Clipboard image";
+      imgEl.loading = "lazy";
+      copyBtn.append(imgEl);
+
+      const badge = document.createElement("span");
+      badge.className = "item-badge";
+      badge.textContent = (item.mime || "image/png").replace("image/", "").toUpperCase();
+      copyBtn.append(badge);
+    }
 
     if (typeof item.createdAt === "number") {
       const timeEl = document.createElement("div");
@@ -132,17 +164,32 @@ async function refresh() {
 }
 
 async function deleteOne(id) {
-  const history = await getHistory();
-  const next = history.filter((item) => item && item.id !== id);
+  allItems = allItems.filter((item) => item.id !== id);
+  renderItems(getVisibleItems());
 
-  await saveHistory(next);
+  ownWriteInProgress = true;
+  try {
+    const history = await getHistory();
+    const next = history.filter((item) => item && item.id !== id);
+    await saveHistory(next);
+  } finally {
+    ownWriteInProgress = false;
+  }
 }
 
 async function clearAll() {
-  await clearHistory();
+  allItems = [];
+  renderItems(getVisibleItems());
+
+  ownWriteInProgress = true;
+  try {
+    await clearHistory();
+  } finally {
+    ownWriteInProgress = false;
+  }
 }
 
-async function copyToClipboard(text) {
+async function copyTextToClipboard(text) {
   if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
     await navigator.clipboard.writeText(text);
     return;
@@ -157,6 +204,35 @@ async function copyToClipboard(text) {
   helperTextArea.select();
   document.execCommand("copy");
   helperTextArea.remove();
+}
+
+async function copyImageToClipboard(dataUrl) {
+  if (!navigator.clipboard || typeof navigator.clipboard.write !== "function") {
+    setFeedback("Image copy not supported");
+    return;
+  }
+
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+
+  let pngBlob = blob;
+  if (blob.type !== "image/png") {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  }
+
+  const clipboardItem = new ClipboardItem({ "image/png": pngBlob });
+  await navigator.clipboard.write([clipboardItem]);
 }
 
 async function tryPasteToActiveField(text) {
@@ -185,12 +261,21 @@ async function copyItemById(id) {
     return;
   }
 
-  await copyToClipboard(item.text);
-  markCopied(item.id);
-  renderItems(getVisibleItems());
+  const itemType = getItemType(item);
 
-  const pasted = await tryPasteToActiveField(item.text);
-  setFeedback(pasted ? "Copied and pasted" : "Copied!");
+  if (itemType === "text") {
+    await copyTextToClipboard(item.text);
+    markCopied(item.id);
+    renderItems(getVisibleItems());
+
+    const pasted = await tryPasteToActiveField(item.text);
+    setFeedback(pasted ? "Copied and pasted" : "Copied!");
+  } else if (itemType === "image") {
+    await copyImageToClipboard(item.image);
+    markCopied(item.id);
+    renderItems(getVisibleItems());
+    setFeedback("Image copied!");
+  }
 }
 
 listEl.addEventListener("click", async (event) => {
@@ -210,7 +295,6 @@ listEl.addEventListener("click", async (event) => {
 
     try {
       await deleteOne(id);
-      await refresh();
     } finally {
       deleteBtn.disabled = false;
     }
@@ -260,6 +344,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 
   if (!Object.prototype.hasOwnProperty.call(changes, HISTORY_KEY)) {
+    return;
+  }
+
+  if (ownWriteInProgress) {
     return;
   }
 
