@@ -7,7 +7,6 @@
   window.__clipcardInjectedLoaded = true;
 
   const MESSAGE_SOURCE = "__clipcard_injected";
-  const MAX_IMAGE_BYTES = 1 * 1024 * 1024;
 
   function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
@@ -65,10 +64,6 @@
           try {
             const blob = await item.getType(mime);
             if (!blob || blob.size === 0) {
-              continue;
-            }
-
-            if (blob.size > MAX_IMAGE_BYTES) {
               continue;
             }
 

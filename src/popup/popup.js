@@ -11,10 +11,12 @@ const emptyStateEl = document.getElementById("emptyState");
 const clearAllBtn = document.getElementById("clearAllBtn");
 const searchInputEl = document.getElementById("searchInput");
 const feedbackEl = document.getElementById("feedback");
+const chipButtons = document.querySelectorAll(".chip[data-filter]");
 
 const FEEDBACK_DURATION_MS = 1400;
 
 let allItems = [];
+let currentFilter = "all";
 let copiedItemId = "";
 let feedbackTimer = 0;
 let copiedTimer = 0;
@@ -33,12 +35,18 @@ function getItemType(item) {
 }
 
 function getVisibleItems() {
-  const query = searchInputEl.value.trim().toLowerCase();
-  if (!query) {
-    return allItems;
+  let items = allItems;
+
+  if (currentFilter !== "all") {
+    items = items.filter((item) => getItemType(item) === currentFilter);
   }
 
-  return allItems.filter((item) => {
+  const query = searchInputEl.value.trim().toLowerCase();
+  if (!query) {
+    return items;
+  }
+
+  return items.filter((item) => {
     const itemType = getItemType(item);
     if (itemType === "text") {
       return item.text.toLowerCase().includes(query);
@@ -89,8 +97,13 @@ function renderItems(items) {
   }
 
   if (items.length === 0) {
+    const emptyMessages = {
+      all: "No matches",
+      text: "No text items",
+      image: "No images found",
+    };
     emptyStateEl.classList.remove("hidden");
-    emptyStateEl.textContent = "No matches";
+    emptyStateEl.textContent = emptyMessages[currentFilter] || "No matches";
     clearAllBtn.disabled = false;
     return;
   }
@@ -336,6 +349,17 @@ clearAllBtn.addEventListener("click", async () => {
 
 searchInputEl.addEventListener("input", () => {
   renderItems(getVisibleItems());
+});
+
+chipButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    currentFilter = btn.dataset.filter || "all";
+
+    chipButtons.forEach((chip) => chip.classList.remove("active"));
+    btn.classList.add("active");
+
+    renderItems(getVisibleItems());
+  });
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
