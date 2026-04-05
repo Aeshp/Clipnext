@@ -237,3 +237,149 @@ body {
 .hidden {
   display: none;
 }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-bulk {
+  border-color: var(--border);
+  color: var(--muted);
+  font-weight: 500;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.btn-bulk:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-bulk.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.item {
+  position: relative;
+  transition: background-color 180ms ease;
+}
+
+.item.selected-item {
+  background: rgba(15, 118, 110, 0.05);
+}
+
+.item.selected-item::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%) scale(1);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  background-size: 13px 13px;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 1;
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 150ms ease;
+  z-index: 2;
+}
+
+.selection-mode .item-top {
+  padding-left: 36px;
+  transition: padding-left 180ms ease;
+}
+
+.bulk-footer {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 0 2px;
+  background: linear-gradient(transparent, var(--bg) 30%);
+  z-index: 10;
+  animation: slideUp 180ms ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.btn-paste {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 150ms ease, opacity 150ms ease;
+}
+
+.btn-paste:hover:not(:disabled) {
+  background: #0d6960;
+}
+
+.btn-paste:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.toast {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 300px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  background: #374151;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  z-index: 100;
+  animation: toastIn 200ms ease-out;
+  pointer-events: none;
+}
+
+.toast.toast-error {
+  background: #991b1b;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.selection-mode .item-copy {
+  cursor: pointer;
+}
+
+.selection-mode .item-copy:hover {
+  opacity: 0.85;
+}
+
+.list.list-with-footer {
+  max-height: 310px;
+}
