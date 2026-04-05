@@ -12,8 +12,14 @@ const clearAllBtn = document.getElementById("clearAllBtn");
 const searchInputEl = document.getElementById("searchInput");
 const feedbackEl = document.getElementById("feedback");
 const chipButtons = document.querySelectorAll(".chip[data-filter]");
+const bulkSelectBtn = document.getElementById("bulkSelectBtn");
+const bulkFooter = document.getElementById("bulkFooter");
+const pasteSelectedBtn = document.getElementById("pasteSelectedBtn");
+const toastEl = document.getElementById("toast");
 
 const FEEDBACK_DURATION_MS = 1400;
+const MAX_SELECTED_ITEMS = 20;
+const MAX_COMBINED_CHARS = 2_500_000;
 
 let allItems = [];
 let currentFilter = "all";
@@ -21,6 +27,12 @@ let copiedItemId = "";
 let feedbackTimer = 0;
 let copiedTimer = 0;
 let ownWriteInProgress = false;
+
+/** @type {boolean} */
+let isSelectionMode = false;
+/** @type {string[]} */
+let selectedIds = [];
+let toastTimer = 0;
 
 function formatTime(value) {
   if (typeof value !== "number") {
@@ -77,6 +89,59 @@ function setFeedback(message) {
   }, FEEDBACK_DURATION_MS);
 }
 
+function showToast(message, isError = true) {
+  window.clearTimeout(toastTimer);
+  toastEl.textContent = message;
+  toastEl.classList.remove("hidden", "toast-error");
+  if (isError) {
+    toastEl.classList.add("toast-error");
+  }
+  toastTimer = window.setTimeout(() => {
+    toastEl.classList.add("hidden");
+    toastEl.classList.remove("toast-error");
+  }, 2200);
+}
+
+function getSelectedCharCount() {
+  let total = 0;
+  for (const id of selectedIds) {
+    const item = allItems.find((entry) => entry.id === id);
+    if (item && getItemType(item) === "text") {
+      total += item.text.length;
+    }
+  }
+  return total;
+}
+
+function updatePasteButton() {
+  const count = selectedIds.length;
+  pasteSelectedBtn.textContent = `Copy (${count})`;
+  pasteSelectedBtn.disabled = count === 0;
+}
+
+function exitSelectionMode() {
+  isSelectionMode = false;
+  selectedIds = [];
+  bulkSelectBtn.classList.remove("active");
+  bulkFooter.classList.add("hidden");
+  listEl.classList.remove("list-with-footer", "selection-mode");
+  updatePasteButton();
+
+  const highlighted = listEl.querySelectorAll(".selected-item");
+  for (const el of highlighted) {
+    el.classList.remove("selected-item");
+  }
+}
+
+function enterSelectionMode() {
+  isSelectionMode = true;
+  selectedIds = [];
+  bulkSelectBtn.classList.add("active");
+  bulkFooter.classList.remove("hidden");
+  listEl.classList.add("list-with-footer", "selection-mode");
+  updatePasteButton();
+}
+
 function markCopied(id) {
   copiedItemId = id;
   window.clearTimeout(copiedTimer);
@@ -117,6 +182,9 @@ function renderItems(items) {
     card.className = "item";
     if (item.id === copiedItemId) {
       card.classList.add("is-copied");
+    }
+    if (isSelectionMode && selectedIds.includes(item.id)) {
+      card.classList.add("selected-item");
     }
 
     const top = document.createElement("div");
@@ -307,6 +375,13 @@ listEl.addEventListener("click", async (event) => {
     deleteBtn.disabled = true;
 
     try {
+      if (isSelectionMode) {
+        const idx = selectedIds.indexOf(id);
+        if (idx !== -1) {
+          selectedIds.splice(idx, 1);
+          updatePasteButton();
+        }
+      }
       await deleteOne(id);
     } finally {
       deleteBtn.disabled = false;
@@ -325,6 +400,54 @@ listEl.addEventListener("click", async (event) => {
     return;
   }
 
+  if (isSelectionMode) {
+    event.preventDefault();
+
+    const item = allItems.find((entry) => entry.id === id);
+    if (!item) {
+      return;
+    }
+
+    // text only
+    if (getItemType(item) !== "text") {
+      showToast("Images are not supported in bulk paste.");
+      return;
+    }
+
+    const existingIdx = selectedIds.indexOf(id);
+
+    if (existingIdx !== -1) {
+
+      // deselect
+      selectedIds.splice(existingIdx, 1);
+      const card = copyBtn.closest(".item");
+      if (card) {
+        card.classList.remove("selected-item");
+      }
+      updatePasteButton();
+      return;
+    }
+
+    if (selectedIds.length >= MAX_SELECTED_ITEMS) {
+      showToast("Max 20 items allowed.");
+      return;
+    }
+
+    const currentSize = getSelectedCharCount();
+    if (currentSize + item.text.length > MAX_COMBINED_CHARS) {
+      showToast("Payload too large for system clipboard.");
+      return;
+    }
+
+    selectedIds.push(id);
+    const card = copyBtn.closest(".item");
+    if (card) {
+      card.classList.add("selected-item");
+    }
+    updatePasteButton();
+    return;
+  }
+
   copyBtn.disabled = true;
 
   try {
@@ -340,10 +463,70 @@ clearAllBtn.addEventListener("click", async () => {
   clearAllBtn.disabled = true;
 
   try {
+    if (isSelectionMode) {
+      exitSelectionMode();
+    }
     await clearAll();
     await refresh();
   } finally {
     clearAllBtn.disabled = false;
+  }
+});
+
+bulkSelectBtn.addEventListener("click", () => {
+  if (isSelectionMode) {
+    exitSelectionMode();
+    renderItems(getVisibleItems());
+  } else {
+    enterSelectionMode();
+  }
+});
+
+pasteSelectedBtn.addEventListener("click", async () => {
+  if (selectedIds.length === 0) {
+    return;
+  }
+
+  pasteSelectedBtn.disabled = true;
+
+  try {
+    const texts = [];
+    for (const id of selectedIds) {
+      const item = allItems.find((entry) => entry.id === id);
+      if (item && getItemType(item) === "text") {
+        texts.push(item.text);
+      }
+    }
+
+    if (texts.length === 0) {
+      showToast("No text items to paste.");
+      return;
+    }
+
+    const combinedText = texts.join("\n\n");
+
+    await copyTextToClipboard(combinedText);
+
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+
+    if (tab && typeof tab.id === "number") {
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          type: "PASTE_TEXT",
+          text: combinedText,
+        });
+      } catch (_sendError) {
+      }
+    }
+
+    exitSelectionMode();
+    window.close();
+  } catch (error) {
+    console.error("Bulk paste failed:", error);
+    showToast("Paste failed. Text copied to clipboard.");
+  } finally {
+    pasteSelectedBtn.disabled = false;
   }
 });
 

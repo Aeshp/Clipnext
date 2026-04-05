@@ -10,7 +10,10 @@
     <main class="app">
       <header class="app-header">
         <h1>Clipnext</h1>
-        <button id="clearAllBtn" class="btn btn-secondary" type="button">Clear All</button>
+        <div class="header-actions">
+          <button id="bulkSelectBtn" class="btn btn-bulk" type="button">Bulk Select</button>
+          <button id="clearAllBtn" class="btn btn-secondary" type="button">Clear All</button>
+        </div>
       </header>
 
       <label class="search-wrap" for="searchInput">
@@ -33,7 +36,13 @@
 
       <section id="list" class="list" aria-live="polite"></section>
       <p id="emptyState" class="empty hidden">No items</p>
+
+      <div id="bulkFooter" class="bulk-footer hidden">
+        <button id="pasteSelectedBtn" class="btn btn-paste" type="button" disabled>Copy (0)</button>
+      </div>
     </main>
+
+    <div id="toast" class="toast hidden" role="alert" aria-live="assertive"></div>
 
     <script type="module" src="popup.js"></script>
   </body>

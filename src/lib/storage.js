@@ -1,7 +1,7 @@
 export const HISTORY_KEY = "clipboard_history";
 export const MAX_ITEMS = 50;
 export const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-export const MAX_IMAGE_BASE64_LENGTH = 1.4 * 1024 * 1024;
+
 
 function generateId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -156,10 +156,6 @@ export async function appendClipboardText(rawText) {
 export async function appendClipboardImage(imageDataUrl, mime) {
   if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:")) {
     return { ok: false, reason: "invalid" };
-  }
-
-  if (imageDataUrl.length > MAX_IMAGE_BASE64_LENGTH) {
-    return { ok: false, reason: "too_large" };
   }
 
   const history = await cleanupExpiredHistory();
