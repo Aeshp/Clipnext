@@ -34,6 +34,7 @@ export function createTextItem(text) {
     id: generateId(),
     type: "text",
     text,
+    isFavorite: false,
     createdAt,
     expiry: createdAt + SEVEN_DAYS_MS,
   };
@@ -47,6 +48,7 @@ export function createImageItem(image, mime) {
     type: "image",
     image,
     mime: mime || "image/png",
+    isFavorite: false,
     createdAt,
     expiry: createdAt + SEVEN_DAYS_MS,
   };
@@ -58,6 +60,13 @@ export function createHistoryItem(text) {
 
 export function isActiveHistoryItem(item, now = Date.now()) {
   if (!item || typeof item.id !== "string" || typeof item.createdAt !== "number" || typeof item.expiry !== "number") {
+    return false;
+  }
+
+  if (item.isFavorite === true) {
+    const itemType = item.type || "text";
+    if (itemType === "text") return typeof item.text === "string";
+    if (itemType === "image") return typeof item.image === "string";
     return false;
   }
 
@@ -147,8 +156,10 @@ export async function appendClipboardText(rawText) {
 
   history.push(createTextItem(text));
 
-  const trimmedHistory = history.slice(-MAX_ITEMS);
-  await saveHistory(trimmedHistory);
+  const favorites = history.filter((item) => item.isFavorite === true);
+  const nonFavorites = history.filter((item) => item.isFavorite !== true);
+  const trimmedNonFavorites = nonFavorites.slice(-MAX_ITEMS);
+  await saveHistory([...favorites, ...trimmedNonFavorites]);
 
   return { ok: true };
 }
@@ -169,8 +180,28 @@ export async function appendClipboardImage(imageDataUrl, mime) {
 
   history.push(createImageItem(imageDataUrl, mime));
 
-  const trimmedHistory = history.slice(-MAX_ITEMS);
-  await saveHistory(trimmedHistory);
+  const favorites = history.filter((item) => item.isFavorite === true);
+  const nonFavorites = history.filter((item) => item.isFavorite !== true);
+  const trimmedNonFavorites = nonFavorites.slice(-MAX_ITEMS);
+  await saveHistory([...favorites, ...trimmedNonFavorites]);
 
   return { ok: true };
+}
+
+export async function toggleFavorite(id, isFavorite) {
+  const history = await getHistory();
+  const item = history.find((entry) => entry && entry.id === id);
+
+  if (!item) {
+    return history;
+  }
+
+  item.isFavorite = isFavorite;
+
+  if (isFavorite) {
+    item.expiry = Date.now() + SEVEN_DAYS_MS;
+  }
+
+  await saveHistory(history);
+  return history;
 }
