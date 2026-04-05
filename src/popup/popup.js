@@ -4,6 +4,7 @@ import {
   getHistory,
   saveHistory,
   sortHistoryLatestFirst,
+  toggleFavorite,
 } from "../lib/storage.js";
 
 const listEl = document.getElementById("list");
@@ -17,6 +18,9 @@ const bulkFooter = document.getElementById("bulkFooter");
 const pasteSelectedBtn = document.getElementById("pasteSelectedBtn");
 const toastEl = document.getElementById("toast");
 const itemCountEl = document.getElementById("itemCount");
+const clearConfirmModal = document.getElementById("clearConfirmModal");
+const cancelClearBtn = document.getElementById("cancelClearBtn");
+const confirmClearBtn = document.getElementById("confirmClearBtn");
 
 const FEEDBACK_DURATION_MS = 1400;
 const MAX_SELECTED_ITEMS = 20;
@@ -50,7 +54,9 @@ function getItemType(item) {
 function getVisibleItems() {
   let items = allItems;
 
-  if (currentFilter !== "all") {
+  if (currentFilter === "favorites") {
+    items = items.filter((item) => item.isFavorite === true);
+  } else if (currentFilter !== "all") {
     items = items.filter((item) => getItemType(item) === currentFilter);
   }
 
@@ -174,6 +180,7 @@ function renderItems(items) {
       all: "No matches",
       text: "No text items",
       image: "No images found",
+      favorites: "No favorites yet",
     };
     emptyStateEl.classList.remove("hidden");
     emptyStateEl.textContent = emptyMessages[currentFilter] || "No matches";
@@ -190,6 +197,9 @@ function renderItems(items) {
     card.className = "item";
     if (item.id === copiedItemId) {
       card.classList.add("is-copied");
+    }
+    if (item.isFavorite === true) {
+      card.classList.add("is-favorite");
     }
     if (isSelectionMode && selectedIds.includes(item.id)) {
       card.classList.add("selected-item");
@@ -235,12 +245,20 @@ function renderItems(items) {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
-    deleteBtn.className = "btn btn-delete";
-    deleteBtn.textContent = "Delete";
+    deleteBtn.className = "btn-delete-icon";
     deleteBtn.dataset.deleteId = item.id;
+    deleteBtn.setAttribute("aria-label", "Delete");
+    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+
+    const starBtn = document.createElement("button");
+    starBtn.type = "button";
+    starBtn.className = "star-icon";
+    starBtn.dataset.starId = item.id;
+    starBtn.title = item.isFavorite ? "Remove from favorites" : "Add to favorites";
+    starBtn.innerHTML = '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
 
     top.append(copyBtn, deleteBtn);
-    card.append(top);
+    card.append(top, starBtn);
 
     listEl.append(card);
   }
@@ -369,7 +387,47 @@ async function copyItemById(id) {
 
 listEl.addEventListener("click", async (event) => {
   const target = event.target;
-  if (!(target instanceof HTMLElement)) {
+  if (!(target instanceof Element)) {
+    return;
+  }
+
+  const starBtn = target.closest("button[data-star-id]");
+  if (starBtn) {
+    event.stopPropagation();
+    const id = starBtn.dataset.starId;
+    if (!id) return;
+
+    const item = allItems.find((entry) => entry.id === id);
+    if (!item) return;
+
+    const newFavorite = !item.isFavorite;
+    item.isFavorite = newFavorite;
+
+    const card = starBtn.closest(".item");
+    if (card) {
+      card.classList.toggle("is-favorite", newFavorite);
+      starBtn.title = newFavorite ? "Remove from favorites" : "Add to favorites";
+    }
+
+    if (!newFavorite && currentFilter === "favorites") {
+      if (card) {
+        card.classList.add("fade-out");
+        card.addEventListener("animationend", () => {
+          renderItems(getVisibleItems());
+        }, { once: true });
+      }
+    }
+
+    ownWriteInProgress = true;
+    try {
+      await toggleFavorite(id, newFavorite);
+    } catch (err) {
+      console.error("Failed to toggle favorite:", err);
+      item.isFavorite = !newFavorite;
+      if (card) card.classList.toggle("is-favorite", !newFavorite);
+    } finally {
+      ownWriteInProgress = false;
+    }
     return;
   }
 
@@ -467,17 +525,35 @@ listEl.addEventListener("click", async (event) => {
   }
 });
 
-clearAllBtn.addEventListener("click", async () => {
-  clearAllBtn.disabled = true;
+clearAllBtn.addEventListener("click", () => {
+  clearConfirmModal.classList.remove("hidden");
+});
+
+cancelClearBtn.addEventListener("click", () => {
+  clearConfirmModal.classList.add("hidden");
+});
+
+clearConfirmModal.addEventListener("click", (event) => {
+  if (event.target === clearConfirmModal) {
+    clearConfirmModal.classList.add("hidden");
+  }
+});
+
+confirmClearBtn.addEventListener("click", async () => {
+  confirmClearBtn.disabled = true;
 
   try {
+    clearConfirmModal.classList.add("hidden");
     if (isSelectionMode) {
       exitSelectionMode();
     }
     await clearAll();
     await refresh();
+  } catch (error) {
+    console.error("Clear all failed:", error);
+    showToast("Failed to clear history.");
   } finally {
-    clearAllBtn.disabled = false;
+    confirmClearBtn.disabled = false;
   }
 });
 

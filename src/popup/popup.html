@@ -30,6 +30,7 @@
         <button class="chip active" data-filter="all" type="button">All</button>
         <button class="chip" data-filter="text" type="button">Text</button>
         <button class="chip" data-filter="image" type="button">Images</button>
+        <button class="chip favorite-chip" data-filter="favorites" type="button">★ Favorites</button>
         <span id="itemCount" class="item-count"></span>
       </nav>
 
@@ -44,6 +45,17 @@
     </main>
 
     <div id="toast" class="toast hidden" role="alert" aria-live="assertive"></div>
+
+    <div id="clearConfirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <h2 class="modal-title">Clear All Data?</h2>
+        <p class="modal-text">This will permanently delete all your data in Clipnext, including favorites, texts, and images. This action cannot be undone.</p>
+        <div class="modal-actions">
+          <button id="cancelClearBtn" class="btn btn-secondary" type="button">Go Back</button>
+          <button id="confirmClearBtn" class="btn btn-danger" type="button">Proceed</button>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="popup.js"></script>
   </body>
