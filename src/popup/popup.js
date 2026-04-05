@@ -16,6 +16,7 @@ const bulkSelectBtn = document.getElementById("bulkSelectBtn");
 const bulkFooter = document.getElementById("bulkFooter");
 const pasteSelectedBtn = document.getElementById("pasteSelectedBtn");
 const toastEl = document.getElementById("toast");
+const itemCountEl = document.getElementById("itemCount");
 
 const FEEDBACK_DURATION_MS = 1400;
 const MAX_SELECTED_ITEMS = 20;
@@ -151,8 +152,15 @@ function markCopied(id) {
   }, FEEDBACK_DURATION_MS);
 }
 
+function updateItemCount(count) {
+  if (itemCountEl) {
+    itemCountEl.textContent = `${count} ${count === 1 ? "item" : "items"}`;
+  }
+}
+
 function renderItems(items) {
   listEl.textContent = "";
+  updateItemCount(items.length);
 
   if (allItems.length === 0) {
     emptyStateEl.classList.remove("hidden");
