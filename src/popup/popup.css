@@ -66,8 +66,17 @@ body {
 
 .filter-chips {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.item-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .chip {
@@ -116,6 +125,24 @@ body {
   max-height: 370px;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  transition: background 150ms ease;
+}
+
+.list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .item {
