@@ -2,7 +2,9 @@ import {
   appendClipboardText,
   appendClipboardImage,
   cleanupExpiredHistory,
+  getSettings,
 } from "../lib/storage.js";
+import { FUN_MESSAGES } from "../lib/messages.js";
 
 const CLEANUP_ALARM_NAME = "clipboard_history_cleanup";
 const CLEANUP_INTERVAL_MINUTES = 60;
@@ -108,6 +110,31 @@ async function saveCopiedImage(imageDataUrl, mime) {
   return await appendClipboardImage(imageDataUrl, mime);
 }
 
+/**
+ * @param {number|undefined} tabId
+ */
+async function maybeSendFunToast(tabId) {
+  if (typeof tabId !== "number") {
+    return;
+  }
+
+  try {
+    const settings = await getSettings();
+    if (!settings.notificationsEnabled) {
+      return;
+    }
+
+    const randomIndex = Math.floor(Math.random() * FUN_MESSAGES.length);
+    const message = FUN_MESSAGES[randomIndex];
+
+    await chrome.tabs.sendMessage(tabId, {
+      type: "SHOW_FUN_TOAST",
+      message,
+    });
+  } catch (_error) {
+  }
+}
+
 chrome.runtime.onStartup.addListener(() => {
   runMaintenance().catch((error) => {
     console.error("Failed startup cleanup:", error);
@@ -130,15 +157,20 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   });
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) {
     return false;
   }
+
+  const senderTabId = sender && sender.tab ? sender.tab.id : undefined;
 
   if (message.type === "COPIED_TEXT" && typeof message.text === "string") {
     saveCopiedText(message.text)
       .then((result) => {
         sendResponse({ ok: result.ok !== false });
+        if (result.ok !== false) {
+          maybeSendFunToast(senderTabId);
+        }
       })
       .catch((error) => {
         console.error("Failed to save clipboard text:", error);
@@ -153,6 +185,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     saveCopiedImage(message.image, message.mime)
       .then((result) => {
         sendResponse({ ok: result.ok !== false });
+        if (result.ok !== false) {
+          maybeSendFunToast(senderTabId);
+        }
       })
       .catch((error) => {
         console.error("Failed to save clipboard image:", error);
@@ -168,6 +203,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (result && result.image) {
           const saved = await saveCopiedImage(result.image, result.mime);
           sendResponse({ ok: saved.ok !== false });
+          if (saved.ok !== false) {
+            maybeSendFunToast(senderTabId);
+          }
         } else {
           sendResponse({ ok: false });
         }

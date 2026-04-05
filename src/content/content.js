@@ -366,13 +366,149 @@
 
   injectPageScript();
 
+  const FUN_TOAST_WRAPPER_ID = "clipnest-toast-wrapper";
+  const CLIPNEST_LOGO_URL = chrome.runtime.getURL("assets/icons/icon48.png");
+
+  function showFunToast(text) {
+    if (typeof text !== "string" || !text) {
+      return;
+    }
+
+    let wrapper = document.getElementById(FUN_TOAST_WRAPPER_ID);
+
+    if (!wrapper) {
+      wrapper = document.createElement("div");
+      wrapper.id = FUN_TOAST_WRAPPER_ID;
+      Object.assign(wrapper.style, {
+        position: "fixed",
+        top: "20px",
+        right: "20px",
+        zIndex: "2147483647",
+        pointerEvents: "none",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: "8px",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      });
+      document.body.appendChild(wrapper);
+    }
+
+    const toast = document.createElement("div");
+    Object.assign(toast.style, {
+      background: "#ffffff",
+      color: "#1f2937",
+      fontSize: "13.5px",
+      fontWeight: "500",
+      lineHeight: "1.45",
+      borderRadius: "10px",
+      border: "1px solid #e5e7eb",
+      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+      maxWidth: "320px",
+      overflow: "hidden",
+      wordBreak: "break-word",
+      pointerEvents: "none",
+      willChange: "transform, opacity",
+    });
+
+    const header = document.createElement("div");
+    Object.assign(header.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      padding: "8px 12px 6px",
+      borderBottom: "1px solid #f3f4f6",
+    });
+
+    const logo = document.createElement("img");
+    logo.src = CLIPNEST_LOGO_URL;
+    logo.alt = "";
+    logo.width = 16;
+    logo.height = 16;
+    Object.assign(logo.style, {
+      width: "16px",
+      height: "16px",
+      borderRadius: "3px",
+      flexShrink: "0",
+    });
+
+    const brand = document.createElement("span");
+    Object.assign(brand.style, {
+      fontSize: "11.5px",
+      fontWeight: "700",
+      color: "#4b5563",
+      letterSpacing: "-0.2px",
+    });
+
+    const brandClip = document.createElement("span");
+    brandClip.textContent = "Clip";
+
+    const brandNext = document.createElement("span");
+    brandNext.textContent = "next";
+    brandNext.style.fontStyle = "italic";
+
+    brand.appendChild(brandClip);
+    brand.appendChild(brandNext);
+
+    header.appendChild(logo);
+    header.appendChild(brand);
+
+    const body = document.createElement("div");
+    body.textContent = text;
+    Object.assign(body.style, {
+      padding: "6px 12px 10px",
+      fontSize: "13.5px",
+      fontWeight: "500",
+      lineHeight: "1.45",
+      color: "#1f2937",
+    });
+
+    toast.appendChild(header);
+    toast.appendChild(body);
+    wrapper.appendChild(toast);
+
+    const animation = toast.animate(
+      [
+        { opacity: 0, transform: "translateY(-20px)" },
+        { opacity: 1, transform: "translateY(0)", offset: 0.06 },
+        { opacity: 1, transform: "translateY(0)", offset: 0.90 },
+        { opacity: 0, transform: "translateY(-20px)" },
+      ],
+      {
+        duration: 4800,
+        easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+        fill: "forwards",
+      }
+    );
+
+    animation.finished
+      .then(() => {
+        toast.remove();
+        if (wrapper && wrapper.children.length === 0) {
+          wrapper.remove();
+        }
+      })
+      .catch(() => {
+        try { toast.remove(); } catch (_e) { }
+      });
+  }
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== "PASTE_TEXT" || typeof message.text !== "string") {
+    if (!message || !message.type) {
       return false;
     }
 
-    const ok = insertTextIntoActiveField(message.text);
-    sendResponse({ ok });
+    if (message.type === "PASTE_TEXT" && typeof message.text === "string") {
+      const ok = insertTextIntoActiveField(message.text);
+      sendResponse({ ok });
+      return false;
+    }
+
+    if (message.type === "SHOW_FUN_TOAST" && typeof message.message === "string") {
+      showFunToast(message.message);
+      return false;
+    }
+
     return false;
   });
 

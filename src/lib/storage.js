@@ -205,3 +205,35 @@ export async function toggleFavorite(id, isFavorite) {
   await saveHistory(history);
   return history;
 }
+
+export const SETTINGS_KEY = "clipnest_settings";
+
+/** @type {{ notificationsEnabled: boolean }} */
+const DEFAULT_SETTINGS = Object.freeze({ notificationsEnabled: true });
+
+/**
+ * @returns {Promise<{ notificationsEnabled: boolean }>}
+ */
+export async function getSettings() {
+  const result = await chrome.storage.local.get(SETTINGS_KEY);
+  const stored = result[SETTINGS_KEY];
+
+  if (stored && typeof stored === "object") {
+    return { ...DEFAULT_SETTINGS, ...stored };
+  }
+
+  return { ...DEFAULT_SETTINGS };
+}
+
+/**
+ * @param {Partial<{ notificationsEnabled: boolean }>} newSettings
+ * @returns {Promise<{ notificationsEnabled: boolean }>}
+ */
+export async function updateSettings(newSettings) {
+  const current = await getSettings();
+  const merged = { ...current, ...newSettings };
+
+  await chrome.storage.local.set({ [SETTINGS_KEY]: merged });
+
+  return merged;
+}

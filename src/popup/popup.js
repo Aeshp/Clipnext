@@ -2,9 +2,11 @@ import {
   HISTORY_KEY,
   clearHistory,
   getHistory,
+  getSettings,
   saveHistory,
   sortHistoryLatestFirst,
   toggleFavorite,
+  updateSettings,
 } from "../lib/storage.js";
 
 const listEl = document.getElementById("list");
@@ -21,6 +23,11 @@ const itemCountEl = document.getElementById("itemCount");
 const clearConfirmModal = document.getElementById("clearConfirmModal");
 const cancelClearBtn = document.getElementById("cancelClearBtn");
 const confirmClearBtn = document.getElementById("confirmClearBtn");
+const notifToggle = document.getElementById("notifToggle");
+const mainView = document.getElementById("mainView");
+const settingsView = document.getElementById("settingsView");
+const openSettingsBtn = document.getElementById("openSettingsBtn");
+const closeSettingsBtn = document.getElementById("closeSettingsBtn");
 
 const FEEDBACK_DURATION_MS = 1400;
 const MAX_SELECTED_ITEMS = 20;
@@ -649,4 +656,32 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 refresh().catch((error) => {
   console.error("Failed to load clipboard history:", error);
+});
+
+openSettingsBtn.addEventListener("click", () => {
+  mainView.classList.add("hidden");
+  settingsView.classList.remove("hidden");
+});
+
+closeSettingsBtn.addEventListener("click", () => {
+  settingsView.classList.add("hidden");
+  mainView.classList.remove("hidden");
+});
+
+getSettings()
+  .then((settings) => {
+    notifToggle.checked = settings.notificationsEnabled;
+  })
+  .catch((error) => {
+    console.error("Failed to load settings:", error);
+    notifToggle.checked = true;
+  });
+
+notifToggle.addEventListener("change", () => {
+  const enabled = notifToggle.checked;
+
+  updateSettings({ notificationsEnabled: enabled }).catch((error) => {
+    console.error("Failed to save notification setting:", error);
+    notifToggle.checked = !enabled;
+  });
 });

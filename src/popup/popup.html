@@ -8,39 +8,72 @@
   </head>
   <body>
     <main class="app">
-      <header class="app-header">
-        <h1>Clipnext</h1>
-        <div class="header-actions">
-          <button id="bulkSelectBtn" class="btn btn-bulk" type="button">Bulk Select</button>
-          <button id="clearAllBtn" class="btn btn-secondary" type="button">Clear All</button>
+
+      <div id="mainView">
+        <header class="app-header">
+          <div class="brand-header">
+            <img src="../../assets/icons/icon48.png" alt="Logo" class="brand-logo" width="24" height="24" />
+            <h1>Clip<i>next</i></h1>
+          </div>
+          <div class="header-actions">
+            <button id="bulkSelectBtn" class="btn btn-bulk" type="button">Bulk Select</button>
+            <button id="clearAllBtn" class="btn btn-secondary" type="button">Clear All</button>
+            <button id="openSettingsBtn" class="icon-btn gear-btn" type="button" aria-label="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <label class="search-wrap" for="searchInput">
+          <input
+            id="searchInput"
+            class="search-input"
+            type="search"
+            placeholder="Search clipboard"
+            autocomplete="off"
+          />
+        </label>
+
+        <nav class="filter-chips" aria-label="Filter by type">
+          <button class="chip active" data-filter="all" type="button">All</button>
+          <button class="chip" data-filter="text" type="button">Text</button>
+          <button class="chip" data-filter="image" type="button">Images</button>
+          <button class="chip favorite-chip" data-filter="favorites" type="button">★ Favorites</button>
+          <span id="itemCount" class="item-count"></span>
+        </nav>
+
+        <p id="feedback" class="feedback hidden" aria-live="polite"></p>
+
+        <section id="list" class="list" aria-live="polite"></section>
+        <p id="emptyState" class="empty hidden">No items</p>
+
+        <div id="bulkFooter" class="bulk-footer hidden">
+          <button id="pasteSelectedBtn" class="btn btn-paste" type="button" disabled>Copy (0)</button>
         </div>
-      </header>
+      </div>
 
-      <label class="search-wrap" for="searchInput">
-        <input
-          id="searchInput"
-          class="search-input"
-          type="search"
-          placeholder="Search clipboard"
-          autocomplete="off"
-        />
-      </label>
+      <div id="settingsView" class="hidden">
+        <header class="settings-header">
+          <button id="closeSettingsBtn" class="icon-btn" type="button" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <h2 class="settings-title">Settings</h2>
+        </header>
 
-      <nav class="filter-chips" aria-label="Filter by type">
-        <button class="chip active" data-filter="all" type="button">All</button>
-        <button class="chip" data-filter="text" type="button">Text</button>
-        <button class="chip" data-filter="image" type="button">Images</button>
-        <button class="chip favorite-chip" data-filter="favorites" type="button">★ Favorites</button>
-        <span id="itemCount" class="item-count"></span>
-      </nav>
-
-      <p id="feedback" class="feedback hidden" aria-live="polite"></p>
-
-      <section id="list" class="list" aria-live="polite"></section>
-      <p id="emptyState" class="empty hidden">No items</p>
-
-      <div id="bulkFooter" class="bulk-footer hidden">
-        <button id="pasteSelectedBtn" class="btn btn-paste" type="button" disabled>Copy (0)</button>
+        <div class="settings-body">
+          <div class="settings-row" id="settingsRow">
+            <span class="settings-label">Popup Notifications</span>
+            <label class="toggle-switch" for="notifToggle">
+              <input type="checkbox" id="notifToggle" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
       </div>
     </main>
 
