@@ -28,6 +28,11 @@ const mainView = document.getElementById("mainView");
 const settingsView = document.getElementById("settingsView");
 const openSettingsBtn = document.getElementById("openSettingsBtn");
 const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+const updateBadge = document.getElementById("updateBadge");
+const updateContainer = document.getElementById("updateContainer");
+const updateBannerText = document.getElementById("updateBannerText");
+const updateBannerLink = document.getElementById("updateBannerLink");
+const appVersionFooter = document.getElementById("appVersionFooter");
 
 const FEEDBACK_DURATION_MS = 1400;
 const MAX_SELECTED_ITEMS = 20;
@@ -661,6 +666,18 @@ refresh().catch((error) => {
 openSettingsBtn.addEventListener("click", () => {
   mainView.classList.add("hidden");
   settingsView.classList.remove("hidden");
+
+  if (updateBadge && !updateBadge.classList.contains("hidden")) {
+    updateBadge.classList.add("hidden");
+
+    chrome.storage.local.get("update_info", (result) => {
+      const info = result && result.update_info;
+      if (info) {
+        info.badgeSeen = true;
+        chrome.storage.local.set({ update_info: info });
+      }
+    });
+  }
 });
 
 closeSettingsBtn.addEventListener("click", () => {
@@ -684,4 +701,53 @@ notifToggle.addEventListener("change", () => {
     console.error("Failed to save notification setting:", error);
     notifToggle.checked = !enabled;
   });
+});
+
+function compareSemver(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  const len = Math.max(pa.length, pb.length);
+
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+
+  return 0;
+}
+
+const localVersion = chrome.runtime.getManifest().version;
+
+if (appVersionFooter) {
+  appVersionFooter.textContent = `Clipnext v${localVersion}`;
+}
+
+chrome.storage.local.get("update_info", (result) => {
+  const updateInfo = result && result.update_info;
+
+  if (!updateInfo || typeof updateInfo.version !== "string") {
+    return;
+  }
+
+  if (compareSemver(updateInfo.version, localVersion) <= 0) {
+    return;
+  }
+
+  if (updateContainer) {
+    updateContainer.classList.remove("hidden");
+  }
+
+  if (updateBannerText) {
+    updateBannerText.textContent = `v${updateInfo.version} available`;
+  }
+
+  if (updateBannerLink) {
+    updateBannerLink.href = updateInfo.url || "#";
+  }
+
+  if (updateInfo.badgeSeen === false && updateBadge) {
+    updateBadge.classList.remove("hidden");
+  }
 });

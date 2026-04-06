@@ -12,6 +12,11 @@ const CONTENT_SCRIPT_FILE = "src/content/content.js";
 const INJECTABLE_URL_PATTERNS = ["http://*/*", "https://*/*", "file:///*"];
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen/offscreen.html";
 
+const UPDATE_ALARM_NAME = "checkUpdates";
+const UPDATE_CHECK_INTERVAL_MINUTES = 1440;
+const GITHUB_RELEASES_URL =
+  "https://api.github.com/repos/Aeshp/Clipnext/releases/latest";
+
 let creatingOffscreen = null;
 
 async function ensureOffscreenDocument() {
@@ -85,9 +90,69 @@ async function injectContentScriptIntoOpenTabs() {
   await Promise.all(injections);
 }
 
+function compareSemver(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  const len = Math.max(pa.length, pb.length);
+
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+
+  return 0;
+}
+
+async function checkForUpdate() {
+  try {
+    const response = await fetch(GITHUB_RELEASES_URL, {
+      headers: { Accept: "application/vnd.github.v3+json" },
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json();
+    const tagName = data.tag_name;
+
+    if (typeof tagName !== "string" || !tagName) {
+      return;
+    }
+
+    const githubVersion = tagName.replace(/^v/i, "");
+    const localVersion = chrome.runtime.getManifest().version;
+
+    if (compareSemver(githubVersion, localVersion) > 0) {
+      const stored = await chrome.storage.local.get("update_info");
+      const existing = stored && stored.update_info;
+
+      if (existing && existing.version === githubVersion) {
+        return;
+      }
+
+      await chrome.storage.local.set({
+        update_info: {
+          version: githubVersion,
+          url: data.html_url || "",
+          badgeSeen: false,
+        },
+      });
+    }
+  } catch (_error) {
+  }
+}
+
 async function runMaintenance() {
   ensureCleanupAlarm();
   await cleanupExpiredHistory();
+
+  chrome.alarms.create(UPDATE_ALARM_NAME, {
+    periodInMinutes: UPDATE_CHECK_INTERVAL_MINUTES,
+  });
+  checkForUpdate();
 
   try {
     await ensureOffscreenDocument();
@@ -148,13 +213,20 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (!alarm || alarm.name !== CLEANUP_ALARM_NAME) {
+  if (!alarm || !alarm.name) {
     return;
   }
 
-  cleanupExpiredHistory().catch((error) => {
-    console.error("Failed periodic cleanup:", error);
-  });
+  if (alarm.name === CLEANUP_ALARM_NAME) {
+    cleanupExpiredHistory().catch((error) => {
+      console.error("Failed periodic cleanup:", error);
+    });
+    return;
+  }
+
+  if (alarm.name === UPDATE_ALARM_NAME) {
+    checkForUpdate();
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
