@@ -1,28 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "Clipnext – Smart Clipboard Manager",
+  "name": "ClipNext – Smart Clipboard Manager",
   "version": "1.1.0",
-  "description": "Smart clipboard manager for text, images, and screenshots. Capture everything you copy, access your history instantly, auto-delete after 7 days, and keep all data stored locally for privacy. Fully open source and transparent",
-  "permissions": [
-    "storage",
-    "clipboardRead",
-    "clipboardWrite",
-    "alarms",
-    "tabs",
-    "scripting",
-    "offscreen"
-  ],
-  "host_permissions": ["<all_urls>"],
+  "description": "Capture everything you copy. Access clipboard history for text, screenshots and images instantly, stored locally for total privacy.",
   "icons": {
     "16": "assets/icons/icon16.png",
+    "32": "assets/icons/icon32.png",
     "48": "assets/icons/icon48.png",
     "128": "assets/icons/icon128.png"
   },
   "action": {
-    "default_title": "Clipboard History",
+    "default_title": "ClipNext",
     "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "assets/icons/icon16.png",
+      "32": "assets/icons/icon32.png",
       "48": "assets/icons/icon48.png",
       "128": "assets/icons/icon128.png"
     }
@@ -31,18 +23,29 @@
     "service_worker": "src/background/service-worker.js",
     "type": "module"
   },
+  "permissions": [
+    "storage",
+    "clipboardRead",
+    "clipboardWrite",
+    "alarms",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://api.github.com/*"
+  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "js": ["src/content/content.js"],
-      "run_at": "document_start",
-      "all_frames": true,
-      "match_about_blank": true
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/injected/injected.js", "assets/icons/icon48.png"],
+      "resources": [
+        "src/injected/injected.js",
+        "assets/icons/icon48.png"
+      ],
       "matches": ["<all_urls>"]
     }
   ]
