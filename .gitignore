@@ -1,0 +1,23 @@
+# === OS Generated ===
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# === Editors & IDEs ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === Node (if ever added) ===
+node_modules/
+package-lock.json
+
+# === Build / Package Artifacts ===
+*.zip
+*.crx
+*.pem
+
+# === Logs ===
+*.log
