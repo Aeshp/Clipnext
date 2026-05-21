@@ -1,6 +1,7 @@
 export const HISTORY_KEY = "clipboard_history";
 export const MAX_ITEMS = 50;
 export const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+export const SUPPRESS_KEY = "__clipnext_suppress_clipboard";
 
 
 function generateId() {
@@ -126,6 +127,71 @@ export async function clearHistory() {
   await chrome.storage.local.remove(HISTORY_KEY);
 }
 
+/**
+ * Set a suppress flag so that clipboard writes triggered by the popup
+ * are not re-recorded as new history items.
+ * @param {number} durationMs – How long to suppress (default 5000ms)
+ */
+export async function setSuppressClipboardCapture(durationMs = 5000) {
+  const expiresAt = Date.now() + durationMs;
+  await chrome.storage.session.set({ [SUPPRESS_KEY]: expiresAt });
+}
+
+/**
+ * Check whether clipboard capture is currently suppressed.
+ * @returns {Promise<boolean>}
+ */
+export async function isSuppressed() {
+  try {
+    const result = await chrome.storage.session.get(SUPPRESS_KEY);
+    const expiresAt = result[SUPPRESS_KEY];
+    if (typeof expiresAt !== "number") {
+      return false;
+    }
+    if (Date.now() >= expiresAt) {
+      // Expired – clean up
+      await chrome.storage.session.remove(SUPPRESS_KEY);
+      return false;
+    }
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+/**
+ * Clear the suppress flag immediately.
+ */
+export async function clearSuppressFlag() {
+  try {
+    await chrome.storage.session.remove(SUPPRESS_KEY);
+  } catch (_error) {
+    // Ignore – session storage may not be available in all contexts
+  }
+}
+
+/**
+ * Move an existing history item to the top by updating its createdAt
+ * timestamp and resetting its expiry.
+ * @param {string} id – The item ID to move to top
+ * @returns {Promise<boolean>} true if the item was found and moved
+ */
+export async function moveItemToTop(id) {
+  const history = await getHistory();
+  const item = history.find((entry) => entry && entry.id === id);
+
+  if (!item) {
+    return false;
+  }
+
+  const now = Date.now();
+  item.createdAt = now;
+  item.expiry = now + SEVEN_DAYS_MS;
+
+  await saveHistory(history);
+  return true;
+}
+
 export async function cleanupExpiredHistory() {
   const now = Date.now();
   const history = await getHistory();
@@ -164,6 +230,18 @@ export async function appendClipboardText(rawText) {
   return { ok: true };
 }
 
+/**
+ * Compute a fuzzy signature for an image data URL so that re-encoded
+ * versions of the same image are detected as duplicates.
+ */
+function imageSignature(dataUrl) {
+  if (typeof dataUrl !== "string") return "";
+  const len = dataUrl.length;
+  const prefix = dataUrl.slice(0, 500);
+  const suffix = dataUrl.slice(-500);
+  return `${len}:${prefix}:${suffix}`;
+}
+
 export async function appendClipboardImage(imageDataUrl, mime) {
   if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:")) {
     return { ok: false, reason: "invalid" };
@@ -171,10 +249,20 @@ export async function appendClipboardImage(imageDataUrl, mime) {
 
   const history = await cleanupExpiredHistory();
 
-  const isDuplicate = history.some(
+  // Exact match
+  const exactDuplicate = history.some(
     (item) => item.type === "image" && item.image === imageDataUrl
   );
-  if (isDuplicate) {
+  if (exactDuplicate) {
+    return { ok: false, reason: "duplicate" };
+  }
+
+  // Fuzzy match — catches re-encoded versions of the same image
+  const sig = imageSignature(imageDataUrl);
+  const fuzzyDuplicate = history.some(
+    (item) => item.type === "image" && imageSignature(item.image) === sig
+  );
+  if (fuzzyDuplicate) {
     return { ok: false, reason: "duplicate" };
   }
 
