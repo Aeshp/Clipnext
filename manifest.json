@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClipNext – Smart Clipboard Manager",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Capture everything you copy. Access clipboard history for text, screenshots and images instantly, stored locally for total privacy.",
   "icons": {
     "16": "assets/icons/icon16.png",
