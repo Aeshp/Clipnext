@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.1] — 2026-05-24
+
+> 🛠️ **Patch Release** — Stability improvements and clipboard behavior refinements.
+
+### Fixed
+
+- Fixed image clipboard duplication behavior where selecting a saved image could create duplicate history entries and push identical copies to the top of history.
+- Improved image re-selection handling to reuse clipboard history more naturally and keep history cleaner.
+
+### Improved
+
+- Minor UI polish and usability refinements.
+- General clipboard handling and stability improvements.
+
+---
+
 ## [1.1.0] — 2026-04-06
 
 > 🚀 **Initial Public Release** — Welcome to the first public release of ClipNext!
@@ -32,4 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+[1.1.1]: https://github.com/Aeshp/Clipnext/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Aeshp/Clipnext/releases/tag/v1.1.0
+
+---
