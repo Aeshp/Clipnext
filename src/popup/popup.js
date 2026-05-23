@@ -399,22 +399,21 @@ async function copyItemById(id) {
 
     try {
       await copyImageToClipboard(item.image);
-    } catch (err) {
-      await clearSuppressFlag();
-      throw err;
-    }
 
-    // Move the existing item to the top instead of creating a duplicate
-    ownWriteInProgress = true;
-    try {
-      await moveItemToTop(item.id);
+      // Move the existing item to the top instead of creating a duplicate
+      ownWriteInProgress = true;
+      try {
+        await moveItemToTop(item.id);
+      } finally {
+        ownWriteInProgress = false;
+      }
+
+      markCopied(item.id);
+      await refresh();
+      setFeedback("Image copied!");
     } finally {
-      ownWriteInProgress = false;
+      await clearSuppressFlag();
     }
-
-    markCopied(item.id);
-    await refresh();
-    setFeedback("Image copied!");
   }
 }
 

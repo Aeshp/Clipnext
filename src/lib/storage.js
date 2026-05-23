@@ -133,8 +133,11 @@ export async function clearHistory() {
  * @param {number} durationMs – How long to suppress (default 5000ms)
  */
 export async function setSuppressClipboardCapture(durationMs = 5000) {
-  const expiresAt = Date.now() + durationMs;
-  await chrome.storage.session.set({ [SUPPRESS_KEY]: expiresAt });
+  try {
+    const expiresAt = Date.now() + durationMs;
+    await chrome.storage.session.set({ [SUPPRESS_KEY]: expiresAt });
+  } catch (_error) {
+  }
 }
 
 /**
@@ -178,15 +181,19 @@ export async function clearSuppressFlag() {
  */
 export async function moveItemToTop(id) {
   const history = await getHistory();
-  const item = history.find((entry) => entry && entry.id === id);
+  const idx = history.findIndex((entry) => entry && entry.id === id);
 
-  if (!item) {
+  if (idx === -1) {
     return false;
   }
+
+  const [item] = history.splice(idx, 1);
 
   const now = Date.now();
   item.createdAt = now;
   item.expiry = now + SEVEN_DAYS_MS;
+
+  history.push(item);
 
   await saveHistory(history);
   return true;
@@ -250,20 +257,31 @@ export async function appendClipboardImage(imageDataUrl, mime) {
   const history = await cleanupExpiredHistory();
 
   // Exact match
-  const exactDuplicate = history.some(
+  let existingIdx = history.findIndex(
     (item) => item.type === "image" && item.image === imageDataUrl
   );
-  if (exactDuplicate) {
-    return { ok: false, reason: "duplicate" };
-  }
 
   // Fuzzy match — catches re-encoded versions of the same image
-  const sig = imageSignature(imageDataUrl);
-  const fuzzyDuplicate = history.some(
-    (item) => item.type === "image" && imageSignature(item.image) === sig
-  );
-  if (fuzzyDuplicate) {
-    return { ok: false, reason: "duplicate" };
+  if (existingIdx === -1) {
+    const sig = imageSignature(imageDataUrl);
+    existingIdx = history.findIndex(
+      (item) => item.type === "image" && imageSignature(item.image) === sig
+    );
+  }
+
+  if (existingIdx !== -1) {
+    const [existing] = history.splice(existingIdx, 1);
+    const now = Date.now();
+    existing.createdAt = now;
+    existing.expiry = now + SEVEN_DAYS_MS;
+    history.push(existing);
+
+    const favorites = history.filter((item) => item.isFavorite === true);
+    const nonFavorites = history.filter((item) => item.isFavorite !== true);
+    const trimmedNonFavorites = nonFavorites.slice(-MAX_ITEMS);
+    await saveHistory([...favorites, ...trimmedNonFavorites]);
+
+    return { ok: true, reason: "moved" };
   }
 
   history.push(createImageItem(imageDataUrl, mime));
