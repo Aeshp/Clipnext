@@ -3,7 +3,9 @@ import {
   clearHistory,
   getHistory,
   getSettings,
+  moveItemToTop,
   saveHistory,
+  setSuppressClipboardCapture,
   sortHistoryLatestFirst,
   toggleFavorite,
   updateSettings,
@@ -390,9 +392,22 @@ async function copyItemById(id) {
     const pasted = await tryPasteToActiveField(item.text);
     setFeedback(pasted ? "Copied and pasted" : "Copied!");
   } else if (itemType === "image") {
+    // Suppress clipboard capture so the service worker does not
+    // re-record this internal restore as a new history entry.
+    await setSuppressClipboardCapture(8000);
+
     await copyImageToClipboard(item.image);
+
+    // Move the existing item to the top instead of creating a duplicate
+    ownWriteInProgress = true;
+    try {
+      await moveItemToTop(item.id);
+    } finally {
+      ownWriteInProgress = false;
+    }
+
     markCopied(item.id);
-    renderItems(getVisibleItems());
+    await refresh();
     setFeedback("Image copied!");
   }
 }

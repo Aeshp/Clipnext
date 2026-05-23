@@ -3,6 +3,7 @@ import {
   appendClipboardImage,
   cleanupExpiredHistory,
   getSettings,
+  isSuppressed,
 } from "../lib/storage.js";
 import { FUN_MESSAGES } from "../lib/messages.js";
 
@@ -254,17 +255,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   //image clipboard messages
   if (message.type === "COPIED_IMAGE" && typeof message.image === "string") {
-    saveCopiedImage(message.image, message.mime)
-      .then((result) => {
+    (async () => {
+      try {
+        // Skip saving if this clipboard write was triggered by the popup
+        // restoring an image from history.
+        const suppressed = await isSuppressed();
+        if (suppressed) {
+          sendResponse({ ok: false });
+          return;
+        }
+
+        const result = await saveCopiedImage(message.image, message.mime);
         sendResponse({ ok: result.ok !== false });
         if (result.ok !== false) {
           maybeSendFunToast(senderTabId);
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error("Failed to save clipboard image:", error);
         sendResponse({ ok: false, error: String(error) });
-      });
+      }
+    })();
 
     return true;
   }
@@ -273,6 +283,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     readClipboardViaOffscreen()
       .then(async (result) => {
         if (result && result.image) {
+          // Skip saving if suppressed (internal restore in progress)
+          const suppressed = await isSuppressed();
+          if (suppressed) {
+            sendResponse({ ok: false });
+            return;
+          }
+
           const saved = await saveCopiedImage(result.image, result.mime);
           sendResponse({ ok: saved.ok !== false });
           if (saved.ok !== false) {
