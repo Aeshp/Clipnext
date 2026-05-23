@@ -1,7 +1,6 @@
 import {
   HISTORY_KEY,
   clearHistory,
-  clearSuppressFlag,
   getHistory,
   getSettings,
   moveItemToTop,
@@ -395,25 +394,21 @@ async function copyItemById(id) {
   } else if (itemType === "image") {
     // Suppress clipboard capture so the service worker does not
     // re-record this internal restore as a new history entry.
-    await setSuppressClipboardCapture(5000);
+    await setSuppressClipboardCapture(8000);
 
+    await copyImageToClipboard(item.image);
+
+    // Move the existing item to the top instead of creating a duplicate
+    ownWriteInProgress = true;
     try {
-      await copyImageToClipboard(item.image);
-
-      // Move the existing item to the top instead of creating a duplicate
-      ownWriteInProgress = true;
-      try {
-        await moveItemToTop(item.id);
-      } finally {
-        ownWriteInProgress = false;
-      }
-
-      markCopied(item.id);
-      await refresh();
-      setFeedback("Image copied!");
+      await moveItemToTop(item.id);
     } finally {
-      await clearSuppressFlag();
+      ownWriteInProgress = false;
     }
+
+    markCopied(item.id);
+    await refresh();
+    setFeedback("Image copied!");
   }
 }
 
